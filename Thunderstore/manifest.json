@@ -5,6 +5,6 @@
 	"description": "A mod to show joined player eclipse levels when you host the game (so that you know who to blame for eclipse 1 :P)",
 	"dependencies": [
 		"bbepis-BepInExPack-5.4.2108",
-		"RiskofThunder-HookGenPatcher-1.2.3",
+		"RiskofThunder-HookGenPatcher-1.2.3"
 	]
 }
