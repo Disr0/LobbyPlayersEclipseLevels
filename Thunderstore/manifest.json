@@ -1,12 +1,10 @@
 ﻿{
-	"name": "MyFirstMod",
+	"name": "LobbyPlayersEclipseLevels",
 	"version_number": "1.0.0",
-	"website_url": "",
-	"description": "My first Mod",
+	"website_url": "https://github.com/Disr0/LobbyPlayersEclipseLevels",
+	"description": "A mod to show joined player eclipse levels when you host the game (so that you know who to blame for eclipse 1 :P)",
 	"dependencies": [
 		"bbepis-BepInExPack-5.4.2108",
 		"RiskofThunder-HookGenPatcher-1.2.3",
-		"RiskofThunder-R2API_Items-1.0.1",
-		"RiskofThunder-R2API_Language-1.0.0"
 	]
 }
