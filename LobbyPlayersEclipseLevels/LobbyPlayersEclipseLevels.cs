@@ -1,10 +1,16 @@
 using BepInEx;
 using RoR2;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reflection;
+using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+#if DEBUG
+using UnityHotReloadNS;
+#endif
 
 
 namespace LobbyPlayersEclipseLevels
@@ -15,108 +21,127 @@ namespace LobbyPlayersEclipseLevels
         public const string PluginGUID = PluginAuthor + "." + PluginName;
         public const string PluginAuthor = "diselgonk";
         public const string PluginName = "LobbyPlayersEclipseLevels";
-        public const string PluginVersion = "1.0.0";
+        public const string PluginVersion = "1.1.0";
 
-        private List<NetworkUserId> processedUserIds = new List<NetworkUserId>();
         public void Awake()
         {
             Log.Init(Logger);
 
-            On.RoR2.PreGameController.RecalculateModifierAvailability += PreGameController_RecalculateModifierAvailability;
-            On.RoR2.PreGameController.OnDestroy += PreGameController_OnDestroy;
-            On.RoR2.PreGameController.OnNetworkUserLost += PreGameController_OnNetworkUserLost;
+            On.RoR2.UI.VoteInfoPanelController.UpdateElements += VoteInfoPanelController_UpdateElements;
+            NetworkUser.onNetworkUserUnlockablesUpdated += NetworkUser_OnNetworkUserUnlockablesUpdated;
         }
 
-        private void PreGameController_OnNetworkUserLost(On.RoR2.PreGameController.orig_OnNetworkUserLost orig, PreGameController self, NetworkUser networkUser)
+        private void NetworkUser_OnNetworkUserUnlockablesUpdated(NetworkUser networkUser)
         {
-            orig(self, networkUser);
-
-            if (!NetworkServer.active)
-                return;
-
-            Log.Debug($"Removed user id {networkUser.id} from processed");
-            processedUserIds.Remove(networkUser.id);
+#if DEBUG
+            Log.Debug("NetworkUserUnlockablesUpdated. Updating user eclipse levels.");
+#endif
+            eclipseTooltipCache[networkUser.id] = GetUserEclipseLevelsFormatted(networkUser);
         }
 
-        private void PreGameController_OnDestroy(On.RoR2.PreGameController.orig_OnDestroy orig, PreGameController self)
+        private readonly Dictionary<NetworkUserId, string> eclipseTooltipCache = new();
+        private void VoteInfoPanelController_UpdateElements(On.RoR2.UI.VoteInfoPanelController.orig_UpdateElements orig, RoR2.UI.VoteInfoPanelController self) 
         {
             orig(self);
 
             if (!NetworkServer.active)
-                return;
-
-            Log.Debug($"Cleared processed user ids");
-            processedUserIds.Clear();
-        }
-
-        private void PreGameController_RecalculateModifierAvailability(On.RoR2.PreGameController.orig_RecalculateModifierAvailability orig, PreGameController self)
-        {
-            orig(self);
-
-            if (!NetworkServer.active)
-                return;
-
-            ReadOnlyCollection<NetworkUser> readOnlyInstancesList = NetworkUser.readOnlyInstancesList;
-            foreach (var user in readOnlyInstancesList)
             {
-                if (processedUserIds.Contains(user.id))
-                    continue;
-                if (user.isLocalPlayer)
-                    continue;
+                return;
+            }
 
-                bool printed = PrintUserEclipseLevels(user);
-                if (printed)
+            int playerVoteCount = self.voteController.GetVoteCount();
+            for (int i = 0; i < playerVoteCount; i++)
+            {
+                UserVote vote = self.voteController.GetVote(i);
+                if (!vote.networkUserObject)
                 {
-                    Log.Debug($"Added user id {user.id} to processed");
-                    processedUserIds.Add(user.id);
+                    Log.Warning("No vote.networkUserObject");
+                    continue;
+                }
+
+                var networkUser = vote.networkUserObject.GetComponent<NetworkUser>();
+                eclipseTooltipCache.TryGetValue(networkUser.id, out string? tooltipText);
+                if (tooltipText != null)
+                {
+                    self.indicators[i].tooltipProvider.overrideBodyText = tooltipText;
                 }
             }
         }
-        private static bool PrintUserEclipseLevels(NetworkUser user)
+
+        /// <summary>
+        /// Gets eclipse levels for a network user.
+        /// Works only when you are the host. Otherwise players eclipse levels are always empty.
+        /// </summary>
+        /// <param name="user">The network user.</param>
+        /// <returns>
+        /// A formatted string containing the user's eclipse levels; otherwise,
+        /// <c>null</c> if the levels are empty.
+        /// </returns>
+        private static string GetUserEclipseLevelsFormatted(NetworkUser user)
         {
             string name = user.userName;
-
-            if (string.IsNullOrEmpty(name))
-            {
-                Log.Warning($"Couldn't print eclipse levels. {name} - username is empty. How so?");
-                return false;
-            }
-
             var survivorEclipseLevels = new Dictionary<RoR2.SurvivorDef, int>();
-            foreach (var survivor in RoR2.SurvivorCatalog.allSurvivorDefs)
+            foreach (var survivor in RoR2.SurvivorCatalog.orderedSurvivorDefs)
             {
                 int survivorEclipseLevel = RoR2.EclipseRun.GetNetworkUserSurvivorCompletedEclipseLevel(user, survivor);
                 survivorEclipseLevels.Add(survivor, survivorEclipseLevel);
             }
 
-            string output = $"{name}: ";
+            string output = "Finished eclipses: <br>";
             foreach (var (survivor, eclipseLevel) in survivorEclipseLevels)
             {
                 if (eclipseLevel == 0)
                     continue;
 
-                string survivorDisplayName = RoR2.Language.GetString(survivor.displayNameToken);
-                string survivorColor = ColorUtility.ToHtmlStringRGBA(survivor.primaryColor);
-                if (!string.IsNullOrEmpty(survivorColor)) {
-                    output += $"<color=#{survivorColor}>";
-                }
-                output += $"{survivorDisplayName} - {eclipseLevel} ";
-                if (!string.IsNullOrEmpty(survivorColor))
+                string survivorDisplayName = RoR2.Language.GetString(survivor.displayNameToken).Trim();
+                if (string.IsNullOrEmpty(survivorDisplayName))
                 {
-                    output += $"</color>";
+                    Log.Warning($"No survivor display name for {survivor.cachedName}");
+                    continue;
+                }
+
+                // Getting survivor body because survivor.primaryColor is set incorrectly for character from DLC 2 and 3... gearbox...
+                CharacterBody survivorBody = survivor.bodyPrefab?.GetComponent<CharacterBody>(); 
+                Color survivorColor = survivorBody.bodyColor;
+                survivorColor.a = 1f; // Fully opaque, just in case
+                string survivorColorHtmlString = ColorUtility.ToHtmlStringRGB(survivorBody.bodyColor);
+
+                if (!string.IsNullOrEmpty(survivorColorHtmlString)) {
+                    output += $"<color=#{survivorColorHtmlString}>";
+                }
+                output += $"{survivorDisplayName} - ";
+                if (eclipseLevel == 8)
+                {
+                    output += $"<i>{eclipseLevel}</i>";
+                } 
+                else
+                {
+                    output += $"{eclipseLevel}";
+                }
+                if (!string.IsNullOrEmpty(survivorColorHtmlString))
+                {
+                    output += $"</color><br>";
                 }
             }
             if (survivorEclipseLevels.All(kvp => kvp.Value == 0))
             {
-                return false;
+                output += "None";
+                return output;
             }
-
-            Log.Info($"{output}");
-            Chat.SendBroadcastChat(new Chat.SimpleChatMessage
-            {
-                baseToken = $"{output}"
-            });
-            return true;
+            return output;
         }
+#if DEBUG
+        void Update()
+        {
+            if (Input.GetKeyUp(KeyCode.F2))
+            {
+                Log.Debug("Reloading");
+                UnityHotReload.LoadNewAssemblyVersion(
+                    typeof(LobbyPlayersEclipseLevels).Assembly,
+                    BuildInfo.TargetPath
+                );
+            }
+        }
+#endif
     }
 }

@@ -1,5 +1,8 @@
 # Lobby Players Eclipse Levels
 
-A simple mod to show joined player eclipse levels when you host the game (so that you know who to blame for eclipse 1 :P)
+A simple mod to show joined player eclipse levels when you host the game.
+The levels will be shown in the tooltip on the user vote panel.
+<img width="1409" height="947" alt="Mod preview image" src="https://github.com/user-attachments/assets/1edabbbd-4e10-47d7-b145-597c0e926c58" />
 
-<img width="1083" height="707" alt="изображение" src="https://github.com/user-attachments/assets/357af5a5-77ef-4954-a3a7-68e08b2a114b" />
+# Contact
+In case of bugs or suggestions you can open an issue on github or find me on "Risk of Rain 2 Modding" discord server under nickname diselgonk

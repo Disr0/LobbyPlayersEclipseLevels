@@ -22,19 +22,39 @@
 		</PackageReference>
 
 		<PackageReference Include="BepInEx.Core" Version="5.4.21" />
-
-		<PackageReference Include="R2API.Items" Version="1.0.*" />
-		<PackageReference Include="R2API.Language" Version="1.0.*" />
-
 		<PackageReference Include="UnityEngine.Modules" Version="2021.3.33" IncludeAssets="compile" />
 		<PackageReference Include="RiskOfRain2.GameLibs" Version="*-*" />
 		<PackageReference Include="MMHOOK.RoR2" Version="*" NoWarn="NU1701" />
         <PackageReference Include="RoR2BepInExPack" Version="*" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Reference Include="UnityHotReload">
+	    <HintPath>C:\Users\disro\AppData\Roaming\r2modmanPlus-local\RiskOfRain2\profiles\ListEclipseLevelsMod\BepInEx\plugins\xiaoxiao921-UnityHotReload\UnityHotReload.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
+
 	<Target Name="PostBuild" AfterTargets="Build">
 		<Copy SourceFiles="$(TargetDir)$(ProjectName).dll" DestinationFolder="C:\Users\disro\AppData\Roaming\r2modmanPlus-local\RiskOfRain2\profiles\ListEclipseLevelsMod\BepInEx\plugins\" />
 
 		<Copy SourceFiles="$(TargetDir)$(ProjectName).pdb" DestinationFolder="C:\Users\disro\AppData\Roaming\r2modmanPlus-local\RiskOfRain2\profiles\ListEclipseLevelsMod\BepInEx\plugins\" />
+	</Target>
+	<Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
+		<PropertyGroup>
+			<_BuildInfo>
+public static class BuildInfo
+{
+	public const string TargetPath = @"$(TargetPath)"%3B;
+}
+			</_BuildInfo>
+		</PropertyGroup>
+		<WriteLinesToFile
+			File="$(IntermediateOutputPath)BuildInfo.g.cs"
+			Overwrite="true"
+			Lines="$(_BuildInfo)"
+			Encoding="Unicode" />
+		<ItemGroup>
+			<Compile Include="$(IntermediateOutputPath)BuildInfo.g.cs" />
+		</ItemGroup>
 	</Target>
 </Project>
